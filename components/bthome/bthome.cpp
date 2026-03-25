@@ -899,6 +899,10 @@ bool BTHome::encrypt_payload_(const uint8_t *plaintext, size_t plaintext_len, ui
     return false;
   }
   memcpy(nonce, mac, 6);
+  // ble_hs_id_copy_addr returns MAC little-endian (BLE wire order, LSB first).
+  // HA builds the nonce with the MAC big-endian (as displayed, MSB first).
+  // Reverse so the nonce matches what HA expects.
+  for (int i = 0; i < 3; i++) { uint8_t t = nonce[i]; nonce[i] = nonce[5-i]; nonce[5-i] = t; }
   #else
   // Bluedroid: Get MAC address
   const uint8_t *mac = esp_bt_dev_get_address();
