@@ -450,14 +450,21 @@ void BTHome::build_advertisement_data_() {
     size_t ciphertext_len = 0;
 
     if (this->encrypt_payload_(plaintext, measurement_len, ciphertext, &ciphertext_len)) {
-      memcpy(this->adv_data_ + measurement_start, ciphertext, ciphertext_len);
-      pos = measurement_start + ciphertext_len;
+      // ciphertext layout from encrypt_payload_: [encrypted_payload][MIC 4B]
+      // BTHome v2 wire format requires: [encrypted_payload][counter 4B][MIC 4B]
+      size_t payload_only_len = ciphertext_len - 4;  // strip MIC
+      memcpy(this->adv_data_ + measurement_start, ciphertext, payload_only_len);
+      pos = measurement_start + payload_only_len;
 
-      // Add counter (4 bytes, little-endian)
+      // Add counter (4 bytes, little-endian) BEFORE MIC — required by BTHome spec / HA parser
       this->adv_data_[pos++] = this->counter_ & 0xFF;
       this->adv_data_[pos++] = (this->counter_ >> 8) & 0xFF;
       this->adv_data_[pos++] = (this->counter_ >> 16) & 0xFF;
       this->adv_data_[pos++] = (this->counter_ >> 24) & 0xFF;
+
+      // Add MIC (last 4 bytes of ciphertext) AFTER counter
+      memcpy(this->adv_data_ + pos, ciphertext + payload_only_len, 4);
+      pos += 4;
 
       this->counter_++;
     }
